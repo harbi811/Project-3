@@ -5,11 +5,10 @@
 1. Ibra Lujumba
 2. Mike Mwanga
 3. Eve Akurut
-4. Omara Isaac Emmanuel
-5. Paul Talent
-6. Levis Katwiire
-7. Edward Lukyamuzi
- 
+4. Paul Talent
+5. Levis Katwiire
+6. Edward Lukyamuzi
+7. Omara Isaac Emmanuel
 
 ### Background Information on Project three
 Covid-19 has affected all of our lives, and the pandemic is still running its course around the world. This has spurred an unprecedented scientific effort to understand the pathogen, SARS-CoV2, and the means of its spread and control. Since the start of this year, vast quantities of bioinformatic and epidemiological data have been created, much of which is publicly accessible, and analyses have been published in peer-reviewed as well as non-peer-reviewed media. This creates the potential for rapid and fruitful international collaboration and a low barrier to entry for researchers. On the other hand, it raises the risk of poor uses of data being published and influencing public opinion.
@@ -29,8 +28,8 @@ This project will require participants to be self-directed in defining their res
 ### To undertake epidemiologic and bioinformatics analysis of COVID-19 data from East Africa
 
 a. Epidemologic Analysis
-1. To analyze infection statistics of COVID-19 in E. Africa using SEIR model
-2. Obtain the  basic reproduction ratio, Ro 
+1. To analyze infection statistics of COVID-19 in E. Africa using SEIRD model
+2. Obtain the  basic reproduction ratio, R0 
 3. Assess the role of non-pharmaceutical interventions (NPIs)  in  curbing the spread of COVID-19
 
 b. Bioinformatics Analysis
@@ -44,6 +43,8 @@ b. Bioinformatics Analysis
 
 
 ## Method
+
+  
 1. Extract all SARS-COVID-19 sequences from sequnce databases 
   [Wolfram Data Repository](https://datarepository.wolframcloud.com/resources/Genetic-Sequences-for-the-SARS-CoV-2-Coronavirus)
   [EMBL COVID-19 Data Repository](https://www.covid19dataportal.org/sequences?db=embl),[GISAID](https://www.gisaid.org/epiflu-applications/next-hcov-19-app/)
@@ -51,3 +52,5 @@ b. Bioinformatics Analysis
 3. Comparative analysis of primers to genomes to ascertain sensitivity
 4. Infer conserved and diverse genetic regions
 5. Perfom phylogenetic analysis to identify evolutionary relationship across the genome.
+
+
