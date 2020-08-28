@@ -1,6 +1,8 @@
 # Project 3
 ## Interrogating public datasets and paths to results on Covid19 in East Africa
 
+**This is an ongoing project. Scripts may not work as expected or described and results may change with time. All methods are under tests for reproducibility**
+
 ### Group Members:
 1. Ibra Lujumba
 2. Mike Mwanga
