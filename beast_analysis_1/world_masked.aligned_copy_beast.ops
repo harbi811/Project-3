@@ -1,0 +1,43 @@
+
+Operator analysis
+Operator                                          Tuning   Count      Time     Time/Op  Pr(accept) 
+gtr.rates                                         0.13    5280       2159644  409.02   0.2424      
+frequencies                                       0.013   5354       2069452  386.52   0.2331      
+scale(alpha)                                      0.145   5435       2085199  383.66   0.2423      
+scale(default.clock.rate)                         0.873   16138      7259136  449.82   0.2346      
+up:nodeHeights(treeModel) down:default.clock.rate 1.0     16437      6731249  409.52   0.2309      
+scale(country.clock.rate)                         0.729   16448      479078   29.13    0.2364      
+up:nodeHeights(treeModel) down:country.clock.rate 1.0     16043      6435396  401.13   0.2304      
+subtreeSlide(treeModel)                           0.055   162453     15234836 93.78    0.2309      
+Narrow Exchange(treeModel)                                162150     13473019 83.09    0.4025      
+Wide Exchange(treeModel)                                  16175      340235   21.03    0.0172      
+wilsonBalding(treeModel)                                  16068      2187903  136.17   0.066       
+scale(treeModel.rootHeight)                       0.18    16326      2753991  168.69   0.2392      
+uniform(nodeHeights(treeModel))                           161854     23409996 144.64   0.6946      
+scale(constant.popSize)                           0.83    16147      39732    2.46     0.2324      
+scale(country.rates)                              0.875   81062      2369946  29.24    0.2306      
+bitFlip(country.indicators)                               37880      1085580  28.66    0.0409      
+uniform(age(hCoV-19/England/OXON-AE65D/2020|EPI_ISL_448708|2020))        10978      1507503  137.32   0.16        
+uniform(age(hCoV-19/England/OXON-AF3EC/2020|EPI_ISL_478733|2020))        10943      1894609  173.13   0.112       
+uniform(age(hCoV-19/England/OXON-AF6A7/2020|EPI_ISL_478762|2020))        10975      1779532  162.14   0.1429      
+uniform(age(hCoV-19/India/MaxCov0025_CSIR-IGIB/2020|EPI_ISL_459927|2020))        10861      1400765  128.97   0.0978      
+uniform(age(hCoV-19/India/N10/2020|EPI_ISL_497765|2020))        10727      1644829  153.34   0.1849      
+uniform(age(hCoV-19/Italy/FVG-ICGEB_S208/2020|EPI_ISL_498558|2020-07))        10836      1580580  145.86   0.3906      
+uniform(age(hCoV-19/Italy/Pascale_1/2020|EPI_ISL_492184|2020))        10771      1782838  165.52   0.089       
+uniform(age(hCoV-19/Italy/Pascale_10/2020|EPI_ISL_494771|2020))        10760      1944595  180.72   0.1101      
+uniform(age(hCoV-19/Italy/Pascale_5/2020|EPI_ISL_494757|2020))        10810      1169708  108.21   0.1808      
+uniform(age(hCoV-19/Italy/Pascale_7/2020|EPI_ISL_494761|2020))        10925      2108670  193.01   0.1142      
+uniform(age(hCoV-19/Kenya/NIC_059/2020|EPI_ISL_457827|2020-03))        10969      1309422  119.37   0.0843      
+uniform(age(hCoV-19/Kenya/NIC_084/2020|EPI_ISL_457828|2020-03))        10466      1620870  154.87   0.1421      
+uniform(age(hCoV-19/Kenya/NIC_087/2020|EPI_ISL_457829|2020-03))        10810      1467990  135.8    0.1418      
+uniform(age(hCoV-19/Russia/Novy_Urengoy-RII24772S/2020|EPI_ISL_507216|2020-05))        10666      1684344  157.92   0.0784      
+uniform(age(hCoV-19/Russia/Novy_Urengoy-RII24774S/2020|EPI_ISL_507217|2020-05))        10661      1877338  176.09   0.3235      
+uniform(age(hCoV-19/Russia/Novy_Urengoy-RII24786S/2020|EPI_ISL_507222|2020-05))        10907      1434091  131.48   0.2234      
+uniform(age(hCoV-19/Russia/Novy_Urengoy-RII24787S/2020|EPI_ISL_507223|2020-05))        10841      1548324  142.82   0.1725      
+uniform(age(hCoV-19/Russia/Ufa-RII12-5800V/2020|EPI_ISL_507297|2020))        10851      1356632  125.02   0.101       
+uniform(age(hCoV-19/Russia/Ufa-RII21-5809V/2020|EPI_ISL_507298|2020))        10881      1778299  163.43   0.1397      
+uniform(age(hCoV-19/USA/NC_200331/2020|EPI_ISL_454823|2020-03))        10722      1921509  179.21   0.0727      
+uniform(age(hCoV-19/Weifang/WF0001/2020|EPI_ISL_413691|2020-01))        10650      1209768  113.59   0.0574      
+uniform(age(hCoV-19/Weifang/WF0002/2020|EPI_ISL_413692|2020-01))        10905      1606110  147.28   0.1065      
+uniform(age(hCoV-19/Weifang/WF0019/2020|EPI_ISL_413749|2020-02))        10835      1248613  115.24   0.1165      
+

@@ -1,0 +1,18 @@
+---
+title: "Phylogeographic analysis"
+author: "Ibra Lujumba"
+date: "8/26/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The data comprises of an alignment of sequences of SARS-CoV-2 from around the world. The aim of this analysis was to estimate the ancestral locations of the virus using a Bayesian discrete phylogeographic approach.
+
+## Running BEAUTi
+The alignment in FASTA format was converted to an BEAST XML input file using BEAUTi (Bayesian Evolutionary Analysis Utility) program.
+
+The data was imported into BEAUTi using `File -> Import Data`.
+On the `Tips` tab, the box labelled `Use tip dates`. The sequences have their date of sampling encoded in their labels. The `Parse Dates` button at the top of the `Tips` panel was used 

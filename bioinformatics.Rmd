@@ -1,0 +1,285 @@
+---
+title: "Bioinfomatics analysis of SARS-CoV-2 data from East Africa"
+author: "Ibra Lujumba"
+date: "8/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+We downloaded sequences from [GISAID](https://www.epicov.org/) as of Tuesday, August 17, 2020 12.15pm. 15 sequences from Uganda and 18 from Kenya fulfilling the criteria of "complete (>29000bp)", "high coverage only", "low coverage excl", were obtained for this analysis.
+
+Acknowledgement for the labs that generated and uploaded the data as well as the sequence metadata was also downloaded
+
+#### Setting up the conda environment
+
+```{r}
+library(reticulate)
+library(tidyverse)
+
+## see conda environments
+# conda_list()
+```
+
+```{r}
+## using the anaconda3 environment
+conda_list()[[1]][3] %>% 
+  use_condaenv(required = TRUE)
+```
+
+```{bash engine.opts='-l'}
+# checking whether conda environment with required tools is active
+augur --help
+```
+
+### MULTIPLE SEQUENCE ALIGNMENT 
+
+The sequence assemblies were alogned against the Wuhan-HU-1 reference genome (NC_045512.2) using MAFFT implemented via the rapid phylodynamic pipeline provided by [Augur](https://github.com/nextstrain/augur).
+
+```{bash engine.opts='-l'}
+augur align \
+  --sequences data/eastAfrica_sequences.fasta \
+  --reference-sequence data/Wuhan_reference.gb \
+  --output results/aligned.fasta \
+  --fill-gaps # fill gaps with N's
+```
+
+The alignment was manually inspected using Unipro UGENE and sites at the start and the end of the genome were masked. In these sites more than 90% of the sequences did not have nucleotides.
+
+```{bash engine.opts='-l'}
+augur mask \
+  --sequences results/aligned.fasta \
+  --mask-from-beginning 54 \
+  --mask-from-end 66 \
+  --output results/masked.aligned.fasta
+```
+
+The resulting alignments were inspected the alignment again using UGENE software
+
+### MAXIMUM LIKELIHOOD TREE
+
+A maximum likelihood phylogenetic tree was built using the Augur tree implementation selecting RAxML as the tree-building method
+ML tree inference are consistent on MSA with or without gaps https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4748752/
+
+```{bash engine.opts='-l'}
+augur tree \
+  --alignment results/masked.aligned.fasta \
+  --method raxml \
+  --output results/tree_raw.nwk 
+  
+  # default substitution model is GTR
+```
+
+Currently, GISAID does not have information on the strain of the SARS-CoV-2 sequences. Therefore, we were unable to use `augur` to construct a time-resolved tree, annotate the phylogeny, reconstruct ancestral traits, infer ancestral sequences,identify amino acid mutations.
+Further analysis was done using the R environment using packages such as ggtree, treedater and BactDating.
+
+The resulting alignment was viewed and annotated using [ggtree](https://guangchuangyu.github.io/ggtree-book/chapter-ggtree.html).
+
+```{r, echo=FALSE}
+require(ggtree)
+
+tree <- read.newick("results/tree_raw.nwk")
+
+ggtree(tree) + geom_tiplab(size = 2, color='firebrick')
+```
+## PHYLOGENETIC DATING
+
+The maximum likelihood tree was tested for the presence of significant molecular evolution over the sampling period using the roottotip() function in [BactDating](https://github.com/xavierdidelot/BactDating).
+
+```{r}
+require(BactDating)
+require(ape)
+
+t = read.tree("results/tree_raw.nwk")
+
+# branch lengths not measured in units of substitutions since this returns a number less than 1
+sum(t$edge.length) 
+
+# rescaling branch lengths measured per site to units of substitutions
+# t$edge.length=t$edge.length*L, L = 29903, the length of the alignment
+
+t$edge.length = t$edge.length*29903
+
+# sum(t$edge.length) = 75.22369
+
+# adding isolation dates expressed decimally (order is the same as the order of tree tips, t$tip.label)
+# using lubridate package
+require(lubridate)
+library(stringr)
+
+dates <- t$tip.label
+
+# date of isolation for the reference https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7094943/
+dates[34] <- "2019-12-26"
+
+dates <- str_sub(dates, -10)
+
+# incomplete dates arbitrarily set to 2020/03/20 similar to a sequence from the earliest sequence from the same lab
+dates[c(2,3,23)] <- "2020-03-01"
+
+# converting to decimal dates
+dates <- decimal_date(as.Date(dates))
+
+# assess the strength of the temporal signal using a root-to-tip linear regression
+r = roottotip(t, dates)
+```
+
+
+```{r}
+r
+```
+
+There is no significant temporal signal detected within the sequences from East Africa. 
+
+
+
+## Analysis with sequences from other parts of the world
+
+```{r sampling-sequences}
+library(FastaUtils)
+
+# randomly selecting 200 sequences from epidemic hotspots (Russia, USA, China, UK, Brazil, India and South Africa)
+fasta.sample("data/[country].fasta", nseq = 200, "data/[country]_sample.fasta")
+
+# concatenated them with sequences from Uganda, Kenya, United Arab Emirates and Italy
+```
+
+```{bash engine.opts='-l'}
+augur align --nthreads 2 \
+  --sequences data/world.fasta \
+  --reference-sequence data/Wuhan_reference.gb \
+  --output results/world_aligned.fasta \
+  --fill-gaps 
+
+# the alignment was inspected manually using UGENE
+
+augur mask \
+  --sequences results/world_aligned.fasta \
+  --mask-from-beginning 55 \
+  --mask-from-end 135 \
+  --output results/world_masked.aligned.fasta
+
+# sequence from Italy with "..." characters was removed using UGENE and the 
+# subalignment saved
+
+augur tree \
+  --alignment results/world_masked.aligned_copy.fa \
+  --method raxml \
+  --output results/world_tree_raw.nwk
+
+```
+
+```{r}
+tree <- read.newick("results/world_tree_raw.nwk")
+
+ggtree(tree, layout = "circular")
+```
+
+The maximum likelihood tree was tested for the presence of significant molecular evolution over the sampling period using the roottotip() function in [BactDating](https://github.com/xavierdidelot/BactDating).
+
+```{r}
+
+t = read.tree("results/world_tree_raw.nwk")
+
+# branch lengths not measured in units of substitutions since this returns a number less than 1
+sum(t$edge.length) 
+
+# rescaling branch lengths measured per site to units of substitutions
+# t$edge.length=t$edge.length*L, L = 29903, the length of the alignment
+
+t$edge.length = t$edge.length*29903
+
+# sum(t$edge.length) = 3127.854
+
+# adding isolation dates expressed decimally (order is the same as the order of tree tips, t$tip.label)
+# using lubridate package
+
+labels <- t$tip.label
+
+# writing dates to a txt file so they can be manipulated in bash
+# incomplete dates with month set to start of the month
+# sequences with just the year set to start of the year
+# ideally sequences with incomplete dates should be removed, need to compare analysis with beast analysis
+
+fileConn<-file("labels.txt")
+writeLines(labels, fileConn)
+close(fileConn)
+ # cut -f3 -d"|" labels.txt > dates.txt
+
+# reading txt file into character vector
+dates <- readLines("dates.txt")
+
+# converting to decimal dates
+decimal_dates <- decimal_date(as.Date(dates))
+
+# assess the strength of the temporal signal using a root-to-tip linear regression
+r = roottotip(t, decimal_dates)
+```
+
+```{r}
+r
+```
+
+
+```{r}
+# testing significance of clock signal
+res=bactdate(t, decimal_dates, nbIts=1e5)
+res
+```
+
+```{r}
+# checkiing for MCMC convergence
+plot(res,'trace') # checking traces
+
+```
+
+
+Due to size of the data, treedater package was use to date the phylogentic tree since it is faster than BactDate. Dating was done using a strict molecular clock
+
+```{r}
+require(treedater)
+
+# vector of sample times for each tip in the phylogenetic tree, must be named with corresponding names from t$tip.label
+names(decimal_dates) <- t$tip.label 
+
+calibrated_tree <- dater(t, decimal_dates, s=29903, clock="strict")
+plot(calibrated_tree)
+```
+
+
+```{r}
+		rootToTipRegressionPlot(calibrated_tree) # see outliers incase of any
+		outliers <- outlierTips(calibrated_tree , alpha = 0.20) # find lineages that don't fit molecular clock very well
+		# remove tips that don;t have a hogh q-value
+		pruned_tree <- ape::drop.tip(calibrated_tree, rownames(outliers[outliers$q < 0.20,]) )
+		# rerun dater
+		calibrated_tree2 <- dater(t, dates, s=29903, clock="strict")
+
+# parametric bootstrapping analysis with 50 replicates on the unmasked alignment
+# keeping the tree topology constant while generating new branch length estimates using a Poisson distribution
+# to obtain confidence intervals around each temporal point estimate, 
+
+
+
+
+		# estimatin confidence levels for rates and dates using parametric bootstrap
+		parboot_tree <- parboot(calibrated_tree)
+		# plot estimated number of lineages through time with confidence levels
+		if ( suppressPackageStartupMessages( require(ggplot2)) )
+			(pb.pl <- plot( pb , ggplot=TRUE) )
+```
+
+
+####################################################################################################################
+
+# Maximum parsimony tree
+
+
+
+
+
+
+

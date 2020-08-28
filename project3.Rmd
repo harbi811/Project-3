@@ -1,0 +1,549 @@
+---
+title: "Interrogating public datasets and paths to results on COVID-19 in East Africa"
+author: "Ibra Lujumba"
+date: "8/19/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Epidemiological analysis
+
+Data was downloaded from World Health Organisation [website](https://covid19.who.int/?gclid=Cj0KCQjwvvj5BRDkARIsAGD9vlL0xHREsHUR4Y-6BJ6vyWUUgQyeyu-ni8VXehKmXHbO3l6kHJtJ2FIaAsXbEALw_wcB) on Aug, 20 2020 13:48hrs. The analysis below assumes an epidemic period is occuring and there are no intervention (quarantine and lockdown) measures in place.
+
+```{r parsing-data}
+# data downloaded as of 2020-08-20
+# filtering for kenya and uganda data
+
+data <- read.csv('data/WHO-COVID-19-global-data.csv')
+names(data)
+
+head(data)
+```
+
+```{r filtering-the-data}
+library(tidyverse)
+data <- data %>% select(Date_reported, Country, Cumulative_cases, Cumulative_deaths)
+uganda <- data %>% filter(Country == "Uganda")
+kenya <- data %>% filter(Country == "Kenya")
+
+# The data for Uganda runs from 2020-03-21 to 2020-08-19
+# The data for Kenya runs from 2020-03-14 to 2020-08-19
+
+```
+
+## Differential equations
+
+We adopted the SEIR model with vital dynamics. Model assumptions and definitions of state variables and parameters are;
+
+- The total poulation, $N(t)$ is split into mutually exclusive compartments/ sub-populations of individuals who are susceptible $S(t)$, exposed and in latent period of infection $E(t)$, symptomatic stage of infection $I(t)$, recovered and immune individuals $R(t)$, as well as those that are deceased due to the disease, $D(t)$.
+
+- In the recovered class; $R(t)$, individuals cannot experience reinfection  and are assummed to have acquired life long immunity from the disease. They are also not capable of transmitting the virus.
+
+- All exposed individuals progress to the $I$ compartment after a period of latency.
+
+- The disease can still be transmitted through contact with the dead. Therefore, the dead contribute to the infectious rate of the disease.
+
+**Description of state variables and parameters of the model**
+
+**Variable** | **Description**
+:-------------:|:-------------
+$S(t)$ | Population of susceptible individuals
+$E(t)$ | Population of exposed individuals and are asymptomatic
+$I(t)$ | Population of symptomatic individuals
+$R(t)$ | Population of recovered and immune individuals
+$D(t)$ | Population of dead people
+
+**Parameter** | **Description**
+:-------------:|:-------------
+$\beta$ | Effective transmission rate
+$\Pi$ | Recruitment rate
+$\mu$ | Natural death rate
+$\tau$ | Modification parameter for infectiousness
+$\sigma$ | Progression rate of exposed individuals
+$\alpha$ | Recovery rate of symptomatic individuals
+$h$ | Fraction of symptomatic individuals who recovered
+$\delta$ | Cremation/burial rate of deceased individuals
+
+The compartmental diagram was drawn using [GeoGebra](geogebra.org/geometry).
+![Compartmental diagram for the disease model](/Users/cheza/Desktop/Screenshot 2020-08-25 at 17.05.30.png)
+
+
+
+The differential equations for the dynamical model are based on (mass) conservation principles which formalize the exchange ofindividuals between model compartments (the state variables). Time is the considered an independent variable.
+
+
+$N(t) = S(t) + E(t) + I(t) + R(t) + D(t)$
+
+
+The infection rate of the disease is defined as;
+
+$\lambda(I, D)S(t) = \frac{\beta(I + \tau*D)}{S + E + I + R + D}$
+
+$\beta$ is the effective contact rate and $\tau$ is the modification parameter for assumed reduced infectiousness of D class individuals.
+
+
+$\dfrac{dS}{dt}  =  \Pi - \lambda(I, D)S(t) - \mu S(t)$
+
+$\dfrac{dE}{dt}  =  \lambda(I, D)S(t) - (\sigma + \mu) E(t)$
+
+$\dfrac{dI}{dt}  =  \sigma E(t) - (\alpha + \mu) I(t)$
+
+$\dfrac{dR}{dt}  =  h \alpha I(t) - \mu R(t)$
+
+$\dfrac{dD}{dt}  =  (1-h)\alpha I(t) - \delta D(t)$
+
+The model was initialised with the parameter values below. from literature.
+
+Parameter | value/day
+:----------:|:----------:
+$\beta$ | 0.35 assumed
+$\Pi$ | 100 assumed
+$\mu$ | 0.00004 assumed
+$\tau$ | 0.20 assumed
+$\sigma$ | 0.5 [b](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7277829/)
+$\alpha$ | 0.33 [a](https://www.frontiersin.org/articles/10.3389/fpubh.2020.00230/full)
+$h$ | 0.65 assumed
+$\delta$ | 0.5 assumed
+
+## Model predictions
+
+
+The **deSolve** package was used for solving the differential equations of the model. The equations were written within the **covid** function which takes parameters as input and returns a dataframe with cumulative counts for confirmed and death cases.
+
+```{r covid-function, echo=TRUE}
+## Load deSolve package
+library(deSolve)
+
+# function that returns dataframe
+covid <- function(pars){
+  
+  # SEIR function
+  seir <- function(time, state, parameters) {
+    
+    with(as.list(c(state, parameters)), {
+      
+      # force of infection
+      
+      lambda = beta*(I + (tau * D)) / (S + E + I + R + D)
+      
+      dS <- Pi - lambda*S - mu*S
+      dE <- lambda*S - (sigma + mu)*E
+      dI <- sigma*E - (alpha + mu)*I
+      dR <- h*alpha*I - mu*R
+      dD <- (1-h)*alpha*I - delta*D
+      
+      return(list(c(dS, dE, dI, dR, dD)))
+    })
+  }
+  
+  # time period for the pandemic
+  times <- seq(1, 300, by = 1)
+  
+  # defining state variables (7e6 is the reported population in Sierra
+  # Leone in 2014)
+  state <- c(S=42.72e6, E=10, I=5, R=0, D=0)
+  
+  ## Solve differential equations using using ode 
+  out <- ode(y = state, times = times, func = seir, parms = pars)
+  
+  ## change to data frame
+  out <- as.data.frame(out)
+  
+  # columns for cummulative counts
+  out$Cumulative_cases = cumsum(out$I)
+  out$Cumulative_deaths = cumsum(out$D)
+  
+  out[c('S', 'E', 'I', 'R', 'D')] <- NULL
+  
+  
+  out
+}
+
+
+# defining initialising model parameters
+parameters <- c(beta=0.35, Pi=100, mu=0.00004, tau=0.20, sigma=0.5, alpha=0.33, h=0.65, delta=0.5)
+
+# getting model predictions
+out <- covid(pars = parameters)
+```
+
+
+Using the RColorBrewer package to set colors for plots.
+
+```{r RcolorBrewer, echo=TRUE}
+# setting colors for plots
+require(RColorBrewer)
+rcolor = palette(brewer.pal(n=8, name="Set1"))
+```
+
+
+```{r model-predictions, echo=TRUE, eval=TRUE, fig.cap='Model predictions with initialising parameters.'}
+
+# cummulative numbers
+require(ggplot2)
+library(tidyr)
+
+df <- out %>%
+  select(time, Cumulative_cases, Cumulative_deaths) %>%
+  gather(key = "variable", v = "value", -time)
+
+# Visualisation
+ggplot(df, aes(x = time, y = value)) +
+  geom_line(aes(color = variable)) +
+  scale_color_manual(values = rcolor) +
+  xlab("Time (days)") + ylab("Cummulative number of individuals") +
+  ggtitle('Model predictions using initialising parameters')
+```
+
+## Plots of data from WHO
+
+```{r actual-data, fig.cap="WHO data for Uganda and Kenya"}
+# collected data from WHO
+
+df_u <- uganda %>%
+  select(Date_reported, Cumulative_cases, Cumulative_deaths) %>%
+  gather(key = "variable", v = "value", -Date_reported)
+
+df_k <- kenya %>%
+  select(Date_reported, Cumulative_cases, Cumulative_deaths) %>%
+  gather(key = "variable", v = "value", -Date_reported)
+
+library(scales)
+
+# Visualisation
+par(mfrow=c(2,1))
+
+ggplot(df_u, aes(x = as.Date(Date_reported), y = value)) +
+  geom_line(aes(color = variable)) +
+  scale_x_date(breaks = date_breaks("1 month")) +
+  scale_color_manual(values = rcolor) +
+  xlab("Time (days)") + ylab("Cummulative number of individuals") +
+  ggtitle('Cases in Uganda (2020-03-21 to 2020-08-19)')
+
+ggplot(df_k, aes(x = as.Date(Date_reported), y = value)) +
+  geom_line(aes(color = variable)) +
+  scale_x_date(breaks = date_breaks("1 month")) +
+  scale_color_manual(values = rcolor) +
+  xlab("Time (days)") + ylab("Cummulative number of individuals") +
+  ggtitle('Cases in Kenya (2020-03-14 to 2020-08-19)')
+
+
+```
+
+
+WHO data for Uganda and Kenya shows that the countries are still in the early stages of the local epidemic. There is no observable peak for the available data.
+
+
+
+## Sensitivity analysis
+
+Sensitivity analysis allows one to determine how important each parameter is in disease transmission by evaluating the robustness of model predictions to parameter values. This is because there are many errors in data collection
+
+The FME package was used to:
+- identify and select sensitive parameters
+- perform identifiability analysis to determine which parameters can be identified with the available data
+- fit the parameters to the data (fitting the model to the data)
+- estimate parameter uncertainities given the data using the Markov Chain Monte Carlo (MCMC) method
+- perform sensitivity analysis for consequences of uncertain parameters on latent variables in the data
+<br/>
+
+Any further analysis was done for data from both Uganda and Kenya.
+
+1. **Model cost**
+
+The model cost function estimates weighted residuals of the model output versus the data and calculates sums of squared residuals. It assumes measurement errors are normally distributed and independent.
+
+```{r model-cost}
+require(FME)
+
+# matching column names in all datasets
+uganda2 <- uganda
+uganda2$Country <- NULL
+colnames(uganda2)[1] <- "time"
+uganda2$time <- 1:dim(uganda2)[1]
+
+kenya2 <- kenya
+kenya2$Country <- NULL
+colnames(kenya2)[1] <- "time"
+kenya2$time <- 1:dim(kenya2)[1]
+
+# functions to calculate the cost of the model
+covidCost_u <- function(pars){
+  out <- covid(pars)
+  return(modCost(model = out, obs = uganda2, weight = 'std'))
+}
+
+covidCost_k <- function(pars){
+  out <- covid(pars)
+  return(modCost(model = out, obs = kenya2, weight = 'std'))
+}
+
+
+cost_u <- covidCost_u(pars = parameters)
+cost_k <- covidCost_k(pars = parameters)
+
+cat("The sum of squared residuals for Uganda is", cost_u$model, "and the sum of squared residuals for Kenya is", cost_k$model)
+```
+
+The sum of squared residuals for Uganda is higher than that of Kenya implying that the assumed paramters for the model closely simulate the local epidemic situation in Kenya more closely than in Uganda. This shows that model parameters are context specific.
+
+
+```{r plot-of-cost}
+par(mfrow = c(2,1))
+plot(cost_u, xlab='time', main = "Plot of residuals, Uganda", type="p", pch="*")
+plot(cost_k, xlab='time', main = "Plot of residuals, Kenya", type="p", pch="*")
+```
+
+<br/>
+
+2. **Local sensitivity analysis**
+During local sensitivity analysis, the sensFun estimates the sensitivity of the model output to the  parameter values in a set of so-called sensitivity functions (Brun et al. 2001; Soetaert and Herman 2009).
+When applied in conjunction with observed data, sensFun estimates, for each datapoint, the derivative of the corresponding modeled value with respect to the selected parameters.
+
+These sensitivity functions can be collapsed into summary values. The higher the absolute sensitivity value, the more important the parameter, thus the magnitudes of the sensitivity summary values can be used to rank the importance of parameters on the output variables. 
+As it makes no sense to finetune parameters that have little effect, this ranking serves to choose candidate parameters for model fitting.
+
+```{r local-sensitivity-uganda}
+Sfun_u <- sensFun(covidCost_u, parameters)
+summary(Sfun_u)
+```
+
+Looking at columns L1 and L2, it can be seen that the paramters *beta*, *alpha*, *delta*, and *h* have the highest values and therefore are the most important parameters that determine the number of individuals in a geven compartment given the available data.
+
+
+```{r local-sensitivity-kenya}
+Sfun_k <- sensFun(covidCost_k, parameters)
+summary(Sfun_k)
+```
+The same applies herer *alpha*, *beta*, *h* and *delta* are the most important parameters
+
+
+```{r sensitivity-plots, eval=TRUE,}
+par(mfrow=c(2,1))
+
+plot(Sfun_u, which = c("Cumulative_cases", "Cumulative_deaths"), 
+     xlab = 'time', lwd=2, sub = "Uganda")
+
+plot(Sfun_k, which = c("Cumulative_cases", "Cumulative_deaths"), 
+     xlab = 'time', lwd=2, sub="Kenya")
+```
+
+The sensitivity function for $\beta$ is similar for cumulative cases and deaths. It remains positive and therefore has a  consistent positive effect on the number of cases.
+
+```{r pairs plot, fig.cap="Visualising pairwise relationships between parameters"}
+
+par(mfrow=c(2,1))
+pairs(Sfun_u, which = c("Cumulative_cases", "Cumulative_deaths"), 
+     col = rcolor, sub="Uganda")
+
+pairs(Sfun_k, which = c("Cumulative_cases", "Cumulative_deaths"), 
+     col = rcolor, sub="Kenya")
+```
+
+Parameters where the correlation between them is 1 or -1 are poorly identifiable. *beta* and *Pi* are highly correlated and so are very similar, so are pairs of parameters *Pi* and *mu*, *mu* and *tau*, *sigma* and *alpha* and *h* and *delta*.
+
+<br/>
+
+3. **Multivariate parameter identifiability**
+In multivariate parameter identifiability, the collin function extends analysis to all possible paramter combinateions by estimating approximate linear dependence (collinearity) of parameter sets
+
+```{r multivariate-paramter-identifiability}
+ident_u <- collin(Sfun_u)
+ident_k <- collin(Sfun_k)
+
+head(ident_u)
+```
+
+The 1 and 0 denotes that the parameter is included respectively and not included in the set, N is the number of parameters in the set.
+
+It can be shown that collinearity varies with the number of parameters included.
+```{r collinearity-plot, fig.cap="Change in collinearity as the number of parameters included changes"}
+
+# change in collinearity as number of parameters included changes
+plot(ident_u, log = 'y', col = rcolor)
+```
+
+A parameter set with less than 15  (collinearity threshold) for collinearity was chosen. This parameter set should include as many parameters as possible and those parameters should be critical to the process of disease transmission.
+
+```{r parameter-set-uganda}
+# with collinearity less than 15
+low_coll_u <- ident_u[(ident_u$collinearity >= 5 & ident_u$collinearity <= 15), ]
+
+# maximum number of parameters that can be identified
+max(low_coll_u$N) 
+```
+
+```{r}
+low_coll_u[(low_coll_u$N == 4),] 
+```
+
+
+
+The 4-parameter set chosen was *beta*,*Pi*, *h*,*sigma* for fitting on the Uganda dataset.
+<br/>
+
+
+```{r parameter-set-for-kenya}
+# with collinearity less than 15
+low_coll_k <- ident_k[(ident_k$collinearity >= 5 & ident_k$collinearity <= 15), ]
+
+# maximum number of parameters that can be identified
+max(low_coll_k$N) 
+
+low_coll_u[(low_coll_u$N == 4),] 
+```
+
+The same 4-parameter set chosen was *beta*,*Pi*, *h*,*sigma* for fitting on the Kenya dataset.
+
+
+4. **Model fitting**
+The modFit function embraces functions from optim, nls and nlminb from R base packages. The function that takes input the logarithm of all parameter values. Log transformation ensures that parameters remain positieve during fitting and deals with parameters values that spreas over six orders of maginitude
+
+```{r model-fitting}
+## fitting model to data
+other_par <- c(mu=0.00004, tau=0.10, alpha=0.5, delta=0.5)
+
+# function that takes log of parameters as input
+# for uganda dataset
+covidCost2_u <- function(lpars){
+  covidCost_u(c(exp(lpars), other_par))
+}
+
+# for kenya dataset
+covidCost2_k <- function(lpars){
+  covidCost_k(c(exp(lpars), other_par))
+}
+
+# fitting model to data 
+p = parameters[c('beta', 'Pi', 'h', 'sigma')]
+
+fit_u <- modFit(f = covidCost2_u, p = log(p), method = "Nelder-Mead")
+fit_k <- modFit(f = covidCost2_k, p = log(p), method = "Nelder-Mead")
+# Nelder-Mead method is similar to default optim
+```
+
+
+```{r uganda-best-fit}
+# best-fit parameters and residual sum
+exp(coef(fit_u))
+```
+
+
+
+```{r kenya-best-fit}
+exp(coef(fit_k))
+```
+
+
+```{r}
+cat("The deviance for the Kenyan dataset is", deviance(fit_k), "while the deviance for the Ugandan dataset is", deviance(fit_u))
+```
+
+
+
+### Graphical representations of the numerical simulations of the model using best-fit parameters
+
+```{r best-fit-model, fig.cap="Plot of model with best fit parameters"}
+final_k <- covid(pars = c(exp(coef(fit_k)), other_par))
+final_u <- covid(pars = c(exp(coef(fit_u)), other_par))
+
+df_fk <- final_k %>%
+  select(time, Cumulative_cases, Cumulative_deaths) %>%
+  gather(key = "variable", v = "value", -time)
+
+df_fu <- final_u %>%
+  select(time, Cumulative_cases, Cumulative_deaths) %>%
+  gather(key = "variable", v = "value", -time)
+
+
+# Visualisation
+par(mfrow=c(2,1))
+
+ggplot(df_fk, mapping = aes(x = time, y = value)) + 
+  geom_line(aes(color = variable)) +
+  scale_color_manual(values = rcolor) +
+  xlab("Time (days)") + ylab("Cummulative number of individuals") +
+  ggtitle('Comparison of model predictions using best-fit parameters on Kenyan data')
+
+ggplot(df_fu, mapping = aes(x = time, y = value)) + 
+  geom_line(aes(color = variable)) +
+  scale_color_manual(values = rcolor) +
+  xlab("Time (days)") + ylab("Cummulative number of individuals") +
+  ggtitle('Comparison of model predictions using best-fit parameters on Ugandan data')
+
+```
+
+The best-fit paramters predict a constant exponential increase in the cummulative number of suspected, confirmed and death cases.
+
+<br/>
+
+Model fitting provided one “optimal” set of parameters, that produces the best fit to the measurements in the least squares sense. However, even for perfectly identifiable parameter sets, the uncertainty may be very high or poor estimates may be obtained, if the data have too much noise.
+**Markov chain Monte Carlo analysis** can be used to sample from probability distributions by constructing a Markov chain that has the desired distribution as its equilibrium distribution. Thus, rather than one parameter set, one obtains an ensemble of parameter values that represent the parameter distribution.
+
+### Reproductive number
+
+The expression for the reproductive number was obtained using SageMath.
+$R_0 = \dfrac{\alpha \beta \delta + \beta \delta \mu + \beta \delta \sigma - (\alpha \beta h - \alpha \beta) \sigma \tau}{\alpha \delta \mu + \delta  \mu^2 + (\alpha \delta + \delta \mu \sigma)}$
+
+```{r reproductive-number-kenya}
+
+kenya_par = as.list(c(exp(coef(fit_k)), other_par))
+uganda_par = as.list(c(exp(coef(fit_u)), other_par))
+
+attach(kenya_par)
+r_k = ((alpha*beta*delta) + (beta*delta*mu) + (beta*delta*sigma) - (((alpha*beta*h)-(alpha*beta))*(sigma*tau))) / ((alpha*delta*mu) + (delta*mu*mu) + ((alpha*delta)+(delta*mu))*sigma)
+r_k
+```
+
+```{r reproductive-number-uganda}
+attach(uganda_par)
+r_u = ((alpha*beta*delta) + (beta*delta*mu) + (beta*delta*sigma) - (((alpha*beta*h)-(alpha*beta))*(sigma*tau))) / ((alpha*delta*mu) + (delta*mu*mu) + ((alpha*delta)+(delta*mu))*sigma)
+r_u
+```
+
+## Control strategies and formulate an objective function that minimizes the number of infectious individuals in the population 
+
+**Vaccination**
+
+The vaccination strategy is aimed at reducing number of susceptible individuals below the threshold for which an outbreak can happen in the population. The best infectious disease management strategy is vaccination. Immunisation protects individuals from infection thus reducing disease mortality. Vaccines contain antigens from the infectious agent causing the disease. These illicit an immune response  in the host in a manner intended to be similar to response due to the actual infection. The assumption is that the vaccine provides long-lasting immunity to the infection thus preventing both transmission and infection from the disease.
+Vacination can be done in pediatric in order to reduce the prevalence of an endemic disease and the aim of this action is to ensure that the fraction of susceptible individuals in the population is sufficiently small to prevent the outbreak of an epidemic. The parameter $p$ can be to denote the fraction of new borns who are successfully vaccinated and are therefore 'born' in the immune class.
+$p$ is the product of vaccination coverage (percentage of newborns who receive required number of vaccine doses) and the vaccine efficacy (probability that they develop immunity) 
+
+$S'(t) = \Pi(1-p) - \lambda(I, D)S(t) - \mu S(t) $
+
+$R'(t) = p \Pi + h \alpha I(t) - \mu R(t)$
+
+Vaccination can also be done randomly to an entire population during an epidemic during a mass vaccination campaign for nonendemic pathogens. Vaccination is done for people who are uninfected and have not suffered from the disease before. Vaccination is done until the number of susceptibles reaches zero and all individuals move to the recovered compartment
+
+**Quarantine**
+
+**Aim:** Reduce contact rate between infected and susceptible individuals.
+
+Isolation or quarantining is focused toward individuals who are infected preventing them from further contact and subsequent transmission. It is a good strategy in cases where the infection is caused by an emerging pathogen. Vaccination requires quick isolation and identification of the pathogen, a safe vaccine is produced and administered which may take a long period of time. Isolation is also effective if the etiology of the disease is unknown and is a primary means of control during outbreaks.
+
+Infected individuals are quarantined as soon as they are diagnosed and are thus removed from the population reducing the risk of transmission.
+
+The compartment Q is added to the model
+
+$Q' = d_1 - \chi Q$ 
+
+  where; $d_1$ is the rate at which individuals are detected and put in quarantine and $\frac{1}\chi$ is average time spent in isolation. Individuals leave quarantine after recovery or death.
+
+Contact tracing is a recursive attempt to identify new cases by tracing all potential transmission contacts of known infected individuals.
+Movement restrictions involve closing public places and services like schools, airports and other forms of transport in an attempt to reduce transmission of the disease.
+
+
+
+
+
+
+
+
+
+
+
+
+
