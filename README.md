@@ -44,15 +44,3 @@ b. Bioinformatics Analysis
 6. Phylogeographic analyses of sequences within respective East African countries (is viral diversity correlated with geographic origin?)
 
 
-## Method
-
-  
-1. Extract all SARS-COVID-19 sequences from sequnce databases 
-  [Wolfram Data Repository](https://datarepository.wolframcloud.com/resources/Genetic-Sequences-for-the-SARS-CoV-2-Coronavirus)
-  [EMBL COVID-19 Data Repository](https://www.covid19dataportal.org/sequences?db=embl),[GISAID](https://www.gisaid.org/epiflu-applications/next-hcov-19-app/)
-2. Perform multiple sequence alignments, identify distribution of mutations within the CDs. We require a script to extract the 12 CDs of SARS-CoV-19 strains.
-3. Comparative analysis of primers to genomes to ascertain sensitivity
-4. Infer conserved and diverse genetic regions
-5. Perfom phylogenetic analysis to identify evolutionary relationship across the genome.
-
-
